@@ -18,6 +18,9 @@ class Server {
         let extname = path.extname('.' + req.url)
 
         switch (extname) {
+            case '.html':
+                contentType = 'text/html';
+                break;
             case '.js':
                 contentType = 'text/javascript';
                 break;
@@ -41,19 +44,35 @@ class Server {
         return contentType;
     }
 
+    private send(req: any, res: any) {
+        let filePath: any = /assets/i.test(String(req.url)) ? `.${req.url}` : './index.html';
+
+        fs.readFile(path.resolve(__dirname, filePath), 'utf-8', (err, data) => {
+            if (err) {
+                res.end(err);
+            }
+
+            if(this.defineContenType(req) !== '.html') {
+                res.writeHead(200, { 
+                    'Content-Type': this.defineContenType(req),
+                    'Cache-Control': 'public, max-age=31557600'
+                });
+            } else {
+                res.writeHead(200, { 
+                    'Content-Type': 'text/html',
+                });
+            }
+
+            res.end(data, 'utf-8');
+        });
+    }
+
     public create() {
         this.server = http.createServer((req, res) => {
-            let filePath: any = /assets/i.test(String(req.url)) ? `.${req.url}` : './index.html';
-            
             if (req.method === 'GET') {
-                fs.readFile(path.resolve(__dirname, filePath), 'utf-8', (err, data) => {
-                    if (err) {
-                        res.end(err);
-                    }
-    
-                    res.writeHead(200, { 'Content-Type': this.defineContenType(req) });
-                    res.end(data, 'utf-8');
-                })
+                this.send(req, res);
+            } else if(req.method === 'POST') {
+                this.send(req, res);
             } else {
                 res.end(`Method ${req.method} is inappropriate`)
             }

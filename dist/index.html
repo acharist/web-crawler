@@ -4,12 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Document</title>
+    <title>Crawler client</title>
     <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
     
-    <h1>Hello world</h1>
+    <div class="app-container">
+        <h1 class="app-container__title">Hello, welcome to the web crawler</h1>
+        <p class="app-container__paragraph">
+            This app alows you to download client-side of any public website
+        </p>
+
+        <form action="/" method="POST" class="app-container__form form">
+            <div class="form__container">
+                <input type="text" class="form__input">
+                <button type="submit" class="form__button">Download</button>
+            </div>
+        </form>
+    </div>
+
 
     <script src="/assets/interface.js"></script>
 </body>

@@ -16,6 +16,9 @@ var Server = /** @class */ (function () {
         var contentType = '';
         var extname = path_1.default.extname('.' + req.url);
         switch (extname) {
+            case '.html':
+                contentType = 'text/html';
+                break;
             case '.js':
                 contentType = 'text/javascript';
                 break;
@@ -37,18 +40,35 @@ var Server = /** @class */ (function () {
         }
         return contentType;
     };
+    Server.prototype.send = function (req, res) {
+        var _this = this;
+        var filePath = /assets/i.test(String(req.url)) ? "." + req.url : './index.html';
+        fs_1.default.readFile(path_1.default.resolve(__dirname, filePath), 'utf-8', function (err, data) {
+            if (err) {
+                res.end(err);
+            }
+            if (_this.defineContenType(req) !== '.html') {
+                res.writeHead(200, {
+                    'Content-Type': _this.defineContenType(req),
+                    'Cache-Control': 'public, max-age=31557600'
+                });
+            }
+            else {
+                res.writeHead(200, {
+                    'Content-Type': 'text/html',
+                });
+            }
+            res.end(data, 'utf-8');
+        });
+    };
     Server.prototype.create = function () {
         var _this = this;
         this.server = http_1.default.createServer(function (req, res) {
-            var filePath = /assets/i.test(String(req.url)) ? "." + req.url : './index.html';
             if (req.method === 'GET') {
-                fs_1.default.readFile(path_1.default.resolve(__dirname, filePath), 'utf-8', function (err, data) {
-                    if (err) {
-                        res.end(err);
-                    }
-                    res.writeHead(200, { 'Content-Type': _this.defineContenType(req) });
-                    res.end(data, 'utf-8');
-                });
+                _this.send(req, res);
+            }
+            else if (req.method === 'POST') {
+                _this.send(req, res);
             }
             else {
                 res.end("Method " + req.method + " is inappropriate");
@@ -103,6 +123,6 @@ var Crawler = /** @class */ (function () {
     return Crawler;
 }());
 var server = new Server('127.0.0.1', 3000);
-var crawler = new Crawler('http://lpk31.ru');
+var crawler = new Crawler('https://google.com');
 server.create().run();
 crawler.loadResource();
