@@ -1,4 +1,5 @@
 import request from 'request';
+import qs from 'querystring';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
@@ -6,21 +7,18 @@ import path from 'path';
 class Server {
     public adress: string;
     public port: number;
-    protected server: any;
+    protected server;
 
     constructor(adress: string, port: number) {
         this.adress = adress;
         this.port = port;
     }
 
-    private defineContenType(req: any) {
+    private defineContenType(req) {
         let contentType = '';
         let extname = path.extname('.' + req.url)
 
         switch (extname) {
-            case '.html':
-                contentType = 'text/html';
-                break;
             case '.js':
                 contentType = 'text/javascript';
                 break;
@@ -44,35 +42,57 @@ class Server {
         return contentType;
     }
 
-    private send(req: any, res: any) {
-        let filePath: any = /assets/i.test(String(req.url)) ? `.${req.url}` : './index.html';
-
+    private handleGet(req, res): void { //this function sends assets and home page
+        let filePath = /assets/i.test(String(req.url)) ? `.${req.url}` : './index.html';
+        
         fs.readFile(path.resolve(__dirname, filePath), 'utf-8', (err, data) => {
             if (err) {
                 res.end(err);
             }
 
-            if(this.defineContenType(req) !== '.html') {
-                res.writeHead(200, { 
-                    'Content-Type': this.defineContenType(req),
-                    'Cache-Control': 'public, max-age=31557600'
-                });
-            } else {
-                res.writeHead(200, { 
-                    'Content-Type': 'text/html',
-                });
-            }
+            res.writeHead(200, { 
+                'Content-Type': this.defineContenType(req),
+                'Cache-Control': 'public, max-age=31557600'
+            });
 
             res.end(data, 'utf-8');
+        });
+    }
+
+    private handlePost(req, res): void {
+        let body = '';
+        
+        req.on('data', chunk => {
+            if (body.length > 1e6) {
+                req.connection.destroy();
+            }
+
+            body += chunk;
+        });
+
+        req.on('end', () => {
+            const url = qs.parse(body).url;
+            const crawler = new Crawler(url.toString());
+
+            try {
+                crawler.loadResource();
+                //if ok - return to the home page 
+            } catch(err) {
+                //else - show error
+                console.log(err)
+            } 
+            
+            this.handleGet(req, res);
         });
     }
 
     public create() {
         this.server = http.createServer((req, res) => {
             if (req.method === 'GET') {
-                this.send(req, res);
+                // this.handleGet(req, res);
+                this.handleGet(req, res);
             } else if(req.method === 'POST') {
-                this.send(req, res);
+                this.handlePost(req, res);
             } else {
                 res.end(`Method ${req.method} is inappropriate`)
             }
@@ -120,12 +140,11 @@ class Crawler {
     public loadResource() {
         if(this.validateResourceAdress()) {
             request(this.resourceAdress).pipe(this.page);
+        } else {
+            throw new Error('Incorrect adress');
         }
     }
 }
 
 const server = new Server('127.0.0.1', 3000);
-const crawler = new Crawler('https://google.com');
-
 server.create().run();
-crawler.loadResource();
