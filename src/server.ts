@@ -1,8 +1,8 @@
 import request from 'request';
 import qs from 'querystring';
 import http from 'http';
-import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
 
 class Server {
     public adress: string;
@@ -74,22 +74,29 @@ class Server {
             const url = qs.parse(body).url;
             const crawler = new Crawler(url.toString());
 
-            try {
-                crawler.loadResource();
-                //if ok - return to the home page 
-            } catch(err) {
-                //else - show error
-                console.log(err)
-            } 
-            
-            this.handleGet(req, res);
+            crawler.loadResource()
+                .then((resourceName) => {
+                    this.sendPage(res, `${__dirname}/pages/${resourceName}.html`, resourceName);
+                })
+                .catch((err) => {
+                    console.log(err)
+                });
         });
+    }
+
+    private sendPage(res, filePath, name) {
+        const file = fs.createReadStream(filePath);
+        res.writeHead(200, {
+            'Content-Disposition': `attachment; filename="${name}.html"`,
+            'Contnt-Type': 'text/html'
+        });
+
+        file.pipe(res);
     }
 
     public create() {
         this.server = http.createServer((req, res) => {
             if (req.method === 'GET') {
-                // this.handleGet(req, res);
                 this.handleGet(req, res);
             } else if(req.method === 'POST') {
                 this.handlePost(req, res);
@@ -128,21 +135,49 @@ class Crawler {
     }
 
     private get resourceName() {
+        const postfix = Date.now(); // random postfix
         // get resource name between "//" and "."
         const pattern: RegExp = /\/\/(.*)\./;
-        return pattern.exec(this.resourceAdress)![1]; //! - non-null assertion operator
+        return pattern.exec(this.resourceAdress)![1] + postfix; //! - non-null assertion operator
     }
 
-    private get page() {
-        return fs.createWriteStream(path.resolve(__dirname, `./pages/${this.resourceName}.html`))
+    private page(resourceName) {
+        return fs.createWriteStream(path.resolve(__dirname, `./pages/${resourceName}.html`));
     }
 
+    //******************************************************************* */
     public loadResource() {
-        if(this.validateResourceAdress()) {
-            request(this.resourceAdress).pipe(this.page);
-        } else {
-            throw new Error('Incorrect adress');
-        }
+        return new Promise((resolve, reject) => {
+            const dir = path.resolve(__dirname, './pages');
+            console.log(dir)
+            const name = this.resourceName;
+
+            if(this.validateResourceAdress()) {
+                if(fs.existsSync(dir)) { // make dir for pages 
+
+                    const pageStream = this.page(name);
+                    request(this.resourceAdress).pipe(pageStream);
+                    pageStream.on('close', () => {
+                        resolve(name);
+                    });
+                    console.log(123)
+                } else {
+                    fs.mkdir(dir, (err) => {
+                        if(err) {
+                            reject(new Error(err.message));
+                        }
+                        
+                        const pageStream = this.page(name);
+                        request(this.resourceAdress).pipe(pageStream);
+                        pageStream.on('close', () => {
+                            resolve(name);
+                        });
+                    });
+                }
+            } else {
+                reject(new Error('Incorrect adress'));
+            }
+        });
     }
 }
 

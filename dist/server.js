@@ -6,8 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const request_1 = __importDefault(require("request"));
 const querystring_1 = __importDefault(require("querystring"));
 const http_1 = __importDefault(require("http"));
-const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 class Server {
     constructor(adress, port) {
         this.adress = adress;
@@ -62,21 +62,26 @@ class Server {
         req.on('end', () => {
             const url = querystring_1.default.parse(body).url;
             const crawler = new Crawler(url.toString());
-            try {
-                crawler.loadResource();
-                //if ok - return to the home page 
-            }
-            catch (err) {
-                //else - show error
+            crawler.loadResource()
+                .then((resourceName) => {
+                this.sendPage(res, `${__dirname}/pages/${resourceName}.html`, resourceName);
+            })
+                .catch((err) => {
                 console.log(err);
-            }
-            this.handleGet(req, res);
+            });
         });
+    }
+    sendPage(res, filePath, name) {
+        const file = fs_1.default.createReadStream(filePath);
+        res.writeHead(200, {
+            'Content-Disposition': `attachment; filename="${name}.html"`,
+            'Contnt-Type': 'text/html'
+        });
+        file.pipe(res);
     }
     create() {
         this.server = http_1.default.createServer((req, res) => {
             if (req.method === 'GET') {
-                // this.handleGet(req, res);
                 this.handleGet(req, res);
             }
             else if (req.method === 'POST') {
@@ -110,20 +115,46 @@ class Crawler {
         return pattern.test(this.resourceAdress);
     }
     get resourceName() {
+        const postfix = Date.now(); // random postfix
         // get resource name between "//" and "."
         const pattern = /\/\/(.*)\./;
-        return pattern.exec(this.resourceAdress)[1]; //! - non-null assertion operator
+        return pattern.exec(this.resourceAdress)[1] + postfix; //! - non-null assertion operator
     }
-    get page() {
-        return fs_1.default.createWriteStream(path_1.default.resolve(__dirname, `./pages/${this.resourceName}.html`));
+    page(resourceName) {
+        return fs_1.default.createWriteStream(path_1.default.resolve(__dirname, `./pages/${resourceName}.html`));
     }
+    //******************************************************************* */
     loadResource() {
-        if (this.validateResourceAdress()) {
-            request_1.default(this.resourceAdress).pipe(this.page);
-        }
-        else {
-            throw new Error('Incorrect adress');
-        }
+        return new Promise((resolve, reject) => {
+            const dir = path_1.default.resolve(__dirname, './pages');
+            console.log(dir);
+            const name = this.resourceName;
+            if (this.validateResourceAdress()) {
+                if (fs_1.default.existsSync(dir)) { // make dir for pages 
+                    const pageStream = this.page(name);
+                    request_1.default(this.resourceAdress).pipe(pageStream);
+                    pageStream.on('close', () => {
+                        resolve(name);
+                    });
+                    console.log(123);
+                }
+                else {
+                    fs_1.default.mkdir(dir, (err) => {
+                        if (err) {
+                            reject(new Error(err.message));
+                        }
+                        const pageStream = this.page(name);
+                        request_1.default(this.resourceAdress).pipe(pageStream);
+                        pageStream.on('close', () => {
+                            resolve(name);
+                        });
+                    });
+                }
+            }
+            else {
+                reject(new Error('Incorrect adress'));
+            }
+        });
     }
 }
 const server = new Server('127.0.0.1', 3000);
